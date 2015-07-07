@@ -1,0 +1,20 @@
+{
+  "name": "redis-readwritelock",
+  "description": "General control structures helper for asynchronous functions",
+  "repository" : { "type" : "git", "url" : "https://github.com/mrpepper023/redis-readwritelock.git"},
+  "homepage": "https://github.com/mrpepper023/redis-readwritelock",
+  "version": "0.0.1",
+  "private": false,
+  "dependencies": {
+	"redis":              "*",
+	"control-structures": "*"
+  },
+  "main": "./index",
+  "keywords": [
+    "redis",
+    "readwritelock",
+    "readerwriterlock"
+  ],
+  "author": "Michio Yokomizo (mrpepper023)",
+  "license": "MIT"
+}

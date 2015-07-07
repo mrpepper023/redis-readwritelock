@@ -22,7 +22,7 @@ randomwait = (waittimeobj, next)->
     waittimeobj.time = lockconfig.waitmin
   else
     waittimeobj.time *= Math.random()+Math.random()+Math.random()
-  setTimeout next, Math.floor(waittimeobj.time)
+  setTimeout next, Math.floor(waittimeobj.time-lockconfig.waitmin)
 
 # 
 # デバッグ用ログ出力

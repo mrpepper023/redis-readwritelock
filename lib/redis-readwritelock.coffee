@@ -24,6 +24,8 @@ randomwait = (waittimeobj, next)->
     waittimeobj.time *= Math.max(Math.random(),Math.random())*3.0
   else
     waittimeobj.time *= Math.min(Math.random(),Math.random())*3.0
+  if waittimeobj.time < lockconfig.waitmin
+    waittimeobj.time += lockconfig.waitmin
   setTimeout next, Math.floor(waittimeobj.time-lockconfig.waitmin)
 
 # 

@@ -94,7 +94,7 @@ resetrangelockname = (lockobj, next)->
 ###
    初期化：前回起動時に使ったロックを全部削除する
 ###
-module.exports.init = init = (config, next)->
+module.exports.init = init = (config, cleanflag, next)->
   lockconfig = config
   lockconfig.waitmax = lockconfig.waitmax ? 200
   lockconfig.waitmin = lockconfig.waitmin ? 4
@@ -112,10 +112,13 @@ module.exports.init = init = (config, next)->
     if lockconfig.log then console.log 'no next'
     next = -> return
   
-  rcli.SMEMBERS ['redislock:keys'],(err,replies)->
-    replies.push 'redislock:keys'
-    rcli.DEL replies,(err,reply)->
-      next()
+  if cleanflag
+    rcli.SMEMBERS ['redislock:keys'],(err,replies)->
+      replies.push 'redislock:keys'
+      rcli.DEL replies,(err,reply)->
+        next()
+  else
+    next()
 
 ###
    アンロックは共通

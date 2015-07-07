@@ -1,7 +1,6 @@
 redislock = require('../lib/redis-readwritelock')
 
 
-
 ###
 ---------------------------------------------
    test
@@ -158,7 +157,7 @@ redislock.init {
   logsimple: yes
   logrw: yes
   logrange: yes
-},->
+},true,->
   switch 1
     when 1
       for i in [0..5]

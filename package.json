@@ -3,7 +3,7 @@
   "description": "3-Phases Read-Write-Lock and 3-Phases Real-Number-Range Read-Write-Lock with Redis",
   "repository" : { "type" : "git", "url" : "https://github.com/mrpepper023/redis-readwritelock.git"},
   "homepage": "https://github.com/mrpepper023/redis-readwritelock",
-  "version": "0.0.7",
+  "version": "0.0.9",
   "private": false,
   "dependencies": {
 	"redis":              "*",

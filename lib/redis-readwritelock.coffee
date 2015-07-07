@@ -20,13 +20,17 @@ regist_uselocks = (lockname)->
 randomwait = (waittimeobj, next)->
   if waittimeobj.time >= lockconfig.waitmax
     waittimeobj.time = lockconfig.waitmin
+  
   if Math.random() > 0.5
-    waittimeobj.time *= Math.max(Math.random(),Math.random())*3.0
+    waittimeobj.time *= (0.5+Math.max(Math.random(),Math.random()))*1.5
   else
-    waittimeobj.time *= Math.min(Math.random(),Math.random())*3.0
-  if waittimeobj.time < lockconfig.waitmin
-    waittimeobj.time += lockconfig.waitmin
-  setTimeout next, Math.floor(waittimeobj.time-lockconfig.waitmin)
+    waittimeobj.time *= (0.5+Math.min(Math.random(),Math.random()))*1.5
+  
+  usewaittime = Math.floor(waittimeobj.time-lockconfig.waitmin)
+  if usewaittime < 1
+    next()
+  else
+    setTimeout next, usewaittime
 
 # 
 # デバッグ用ログ出力
@@ -201,13 +205,16 @@ module.exports.unlock = unlock = (lockobj, next)->
       when 'rangewriter-upgrade'
         locklog lockobj, 'unlocked'
         writerlock lockobj.obj, (metalockobj)->
-          args = [lockobj.wobj, lockobj.name+':left']
-          rcli.ZREM args, (err,reply)->
-            args[1] = lockobj.name+':right'
+          args = [lockobj.live, lockobj.name]
+          rcli.ZREM args, (err, reply)->
+            args[0] = lockobj.wobj
+            args[1] = lockobj.name+':left'
             rcli.ZREM args, (err,reply)->
-              unlock metalockobj,->
-                #時間が経ったときはユニーク名のリナンバー
-                resetrangelockname lockobj, next
+              args[1] = lockobj.name+':right'
+              rcli.ZREM args, (err,reply)->
+                unlock metalockobj,->
+                  #時間が経ったときはユニーク名のリナンバー
+                  resetrangelockname lockobj, next
       else
         console.log 'unknown lockobj.type is found! ['+lockobj.type+']'
         process.exit 1
@@ -440,12 +447,12 @@ module.exports.writerlock = writerlock = (objectname_or_lockobj, next)->
         process.exit 1
 
 
-isconflictrangelock = (targetobj, rangemin, rangemax, threshold, next)->
+isconflictrangelock = (targetobj, rangemin, rangemax, next)->
   if not next?
     if lockconfig.log then console.log 'no next'
     next = -> return
   rcli.ZCOUNT [targetobj, rangemin, rangemax], (err,reply)->
-    if reply <= threshold*2
+    if reply == 0
       rcli.ZRANGEBYSCORE [targetobj, '-inf', rangemin], (err,replies)->
         if replies.length == 0
           next false
@@ -459,7 +466,7 @@ isconflictrangelock = (targetobj, rangemin, rangemax, threshold, next)->
             else
               console.log reply+' is an illegal range mark.'
               process.exit 1
-          next (tablemem > threshold)
+          next (tablemem > 0)
     else
       next true
 
@@ -490,24 +497,25 @@ module.exports.rangereaderlock = rangereaderlock = (objectname, rangemin, rangem
     regist_uselocks objectname+':alivelockzset'
     regist_uselocks objectname+':uniquename'
   
-  cs._ []
-  ,(localnext)->
-    rcli.INCR [objectname+':uniquename'], (err,reply)->
-      lockobj.name = reply
-      localnext()
-  ,->
+  rcli.INCR [objectname+':uniquename'], (err,reply)->
+    lockobj.name = reply
+    
     cs._while []
     ,(_break,_next)->
       readerlock lockobj.obj,(metalockobj)->
-        isconflictrangelock lockobj.wobj, rangemin, rangemax, 0, (isconflict)->
+        isconflictrangelock lockobj.wobj, rangemin, rangemax, (isconflict)->
           if not isconflict
-            args = [lockobj.robj, rangemin, lockobj.name+':left']
+            args = [lockobj.live, lockobj.name, lockobj.name]
             rcli.ZADD args, (err,reply)->
-              args[1] = rangemax
-              args[2] = lockobj.name+':right'
+              args[0] = lockobj.robj
+              args[1] = rangemin
+              args[2] = lockobj.name+':left'
               rcli.ZADD args, (err,reply)->
-                unlock metalockobj, ->
-                  _break()
+                args[1] = rangemax
+                args[2] = lockobj.name+':right'
+                rcli.ZADD args, (err,reply)->
+                  unlock metalockobj, ->
+                    _break()
           else
             unlock metalockobj, ->
               locklog lockobj, 'waiting'
@@ -566,28 +574,29 @@ module.exports.rangepwrlock = rangepwrlock = (objectname, rangemin, rangemax, ne
     regist_uselocks objectname+':alivelockzset'
     regist_uselocks objectname+':uniquename'
   
-  cs._ []
-  ,(localnext)->
-    rcli.INCR [objectname+':uniquename'], (err,reply)->
-      lockobj.name = reply
-      localnext()
-  ,->
+  rcli.INCR [objectname+':uniquename'], (err,reply)->
+    lockobj.name = reply
+    
     cs._while []
     ,(_break,_next)->
       pwrlock lockobj.obj,(metalockobj)->
-        isconflictrangelock lockobj.pwrobj, lockobj.min, lockobj.max, 0, (isconflict)->
+        isconflictrangelock lockobj.pwrobj, lockobj.min, lockobj.max, (isconflict)->
           if not isconflict
-            isconflictrangelock lockobj.wobj, lockobj.min, lockobj.max, 0, (isconflict)->
+            isconflictrangelock lockobj.wobj, lockobj.min, lockobj.max, (isconflict)->
               if not isconflict
                 writerlock metalockobj,(metalockobj)->
-                  args = [lockobj.pwrobj, lockobj.min, lockobj.name+':left']
+                  args = [lockobj.live, lockobj.name, lockobj.name]
                   rcli.ZADD args, (err,reply)->
-                    args[1] = lockobj.max
-                    args[2] = lockobj.name+':right'
+                    args[0] = lockobj.pwrobj
+                    args[1] = lockobj.min
+                    args[2] = lockobj.name+':left'
                     rcli.ZADD args, (err,reply)->
-                      unlock metalockobj, ->
+                      args[1] = lockobj.max
+                      args[2] = lockobj.name+':right'
+                      rcli.ZADD args, (err,reply)->
                         unlock metalockobj, ->
-                          _break()
+                          unlock metalockobj, ->
+                            _break()
               else
                 unlock metalockobj, ->
                   locklog lockobj, 'waiting'
@@ -688,9 +697,9 @@ module.exports.rangewriterlock = rangewriterlock = (objectname_or_lockobj, range
           ,(_break,_next)->
             pwrlock lockobj.obj,(metalockobj)->
               #writerともpwrとも衝突チェックして、外れるまでゼロから繰り返し
-              isconflictrangelock lockobj.pwrobj, lockobj.min, lockobj.max, 0, (isconflict)->
+              isconflictrangelock lockobj.pwrobj, lockobj.min, lockobj.max, (isconflict)->
                 if not isconflict
-                  isconflictrangelock lockobj.wobj, lockobj.min, lockobj.max, 0, (isconflict)->
+                  isconflictrangelock lockobj.wobj, lockobj.min, lockobj.max, (isconflict)->
                     if not isconflict
                       _break metalockobj
                     else
@@ -706,25 +715,29 @@ module.exports.rangewriterlock = rangewriterlock = (objectname_or_lockobj, range
     ,(_dummynext, metalockobj)->
       #writerともpwrとも衝突していないので、readerを無視してロックをかけてしまう
       writerlock metalockobj,(metalockobj)->
-        args = [lockobj.wobj, lockobj.min, lockobj.name+':left']
+        args = [lockobj.live, lockobj.name, lockobj.name]
         rcli.ZADD args, (err,reply)->
-          args[1] = lockobj.max
-          args[2] = lockobj.name+':right'
+          args[0] = lockobj.wobj
+          args[1] = lockobj.min
+          args[2] = lockobj.name+':left'
           rcli.ZADD args, (err,reply)->
-            unlock metalockobj, ->
+            args[1] = lockobj.max
+            args[2] = lockobj.name+':right'
+            rcli.ZADD args, (err,reply)->
               unlock metalockobj, ->
-                #重複するrangereadlockが外れるのを待つ
-                waittimeobj.time = lockconfig.waitmin
-                cs._while []
-                ,(_break,_next)->
-                  isconflictrangelock lockobj.robj, lockobj.min, lockobj.max, 0, (isconflict)->
-                    if not isconflict
-                      _break()
-                    else
-                      randomwait waittimeobj, _next
-                ,->
-                  locklog lockobj, 'locked'
-                  next lockobj
+                unlock metalockobj, ->
+                  #重複するrangereadlockが外れるのを待つ
+                  waittimeobj.time = lockconfig.waitmin
+                  cs._while []
+                  ,(_break,_next)->
+                    isconflictrangelock lockobj.robj, lockobj.min, lockobj.max, (isconflict)->
+                      if not isconflict
+                        _break()
+                      else
+                        randomwait waittimeobj, _next
+                  ,->
+                    locklog lockobj, 'locked'
+                    next lockobj
 
 
 

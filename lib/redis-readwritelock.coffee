@@ -20,8 +20,10 @@ regist_uselocks = (lockname)->
 randomwait = (waittimeobj, next)->
   if waittimeobj.time >= lockconfig.waitmax
     waittimeobj.time = lockconfig.waitmin
+  if Math.random() > 0.5
+    waittimeobj.time *= Math.max(Math.random(),Math.random())*3.0
   else
-    waittimeobj.time *= Math.random()+Math.random()+Math.random()
+    waittimeobj.time *= Math.min(Math.random(),Math.random())*3.0
   setTimeout next, Math.floor(waittimeobj.time-lockconfig.waitmin)
 
 # 

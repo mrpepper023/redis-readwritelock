@@ -154,11 +154,11 @@ testrangeD = (num)->
 redislock.init {
   logwait: no
   logshrink: no
-  logsimple: yes
-  logrw: yes
+  logsimple: no
+  logrw: no
   logrange: yes
 },true,->
-  switch 1
+  switch 3
     when 1
       for i in [0..5]
         testA i

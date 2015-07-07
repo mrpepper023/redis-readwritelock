@@ -12,7 +12,7 @@ uselocks = ['redislock:keys', '']
 # 
 regist_uselocks = (lockname)->
   uselocks[1] = lockname
-  rcli.SADD uselocks
+  rcli.SADD uselocks,->return
 
 # 
 # ランダムな時間待つ（ロック競合解決のため）
@@ -28,7 +28,7 @@ randomwait = (waittimeobj, next)->
 # デバッグ用ログ出力
 # 
 locklog = (lockobj, message)->
-  #if DEBUG?
+  if lockconfig.log
     logstr = ''
     if /^wait/.test(message) and not lockconfig.logwait
       return
@@ -98,17 +98,24 @@ module.exports.init = init = (config, next)->
   lockconfig = config
   lockconfig.waitmax = lockconfig.waitmax ? 200
   lockconfig.waitmin = lockconfig.waitmin ? 4
+  lockconfig['log']       = true
   lockconfig['logwait']   = false
   lockconfig['logshrink'] = false
   lockconfig['logsimple'] = false
   lockconfig['logrw']     = false
   lockconfig['logrange']  = false
   
+  if lockconfig.log
+    console.log 'init'
+  
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
+  
   rcli.SMEMBERS ['redislock:keys'],(err,replies)->
     replies.push 'redislock:keys'
     rcli.DEL replies,(err,reply)->
-      if next?
-        next()
+      next()
 
 ###
    アンロックは共通
@@ -117,6 +124,9 @@ module.exports.init = init = (config, next)->
 # ロックを外す
 # 
 module.exports.unlock = unlock = (lockobj, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   if lockobj?.obj? and lockobj.type?
     switch lockobj.type
       when 'simple'
@@ -206,6 +216,9 @@ module.exports.unlock = unlock = (lockobj, next)->
 # ロックする
 # 
 module.exports.simplelock = simplelock = (objectname, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   waittimeobj = {time: lockconfig.waitmin}
   lockobj = {type: 'simple', obj: objectname+':lock'}
   cs._while []
@@ -233,6 +246,9 @@ module.exports.simplelock = simplelock = (objectname, next)->
 # ロックする
 # 
 module.exports.multilock = multilock = (objectarray, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   waittimeobj = {time: lockconfig.waitmin}
   lockobj = {}
   lockobj['type'] = 'multi'
@@ -263,6 +279,9 @@ module.exports.multilock = multilock = (objectarray, next)->
    Readerロック
 ###
 module.exports.readerlock = readerlock = (objectname, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   waittimeobj = {time: lockconfig.waitmin}
   lockobj = {}
   lockobj['type'] = 'reader'
@@ -301,6 +320,9 @@ module.exports.readerlock = readerlock = (objectname, next)->
    PreWrite-Readロック
 ###
 module.exports.pwrlock = pwrlock = (objectname, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   lockobj = {}
   lockobj['type'] = 'pwr'
   lockobj['obj'] = objectname+':rwlock'
@@ -339,6 +361,9 @@ module.exports.pwrlock = pwrlock = (objectname, next)->
    Writerロック
 ###
 module.exports.writerlock = writerlock = (objectname_or_lockobj, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   basescore = 0
   if objectname_or_lockobj?
     if objectname_or_lockobj.type? and objectname_or_lockobj.type == 'pwr'
@@ -409,6 +434,9 @@ module.exports.writerlock = writerlock = (objectname_or_lockobj, next)->
 
 
 isconflictrangelock = (targetobj, rangemin, rangemax, threshold, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   rcli.ZCOUNT [targetobj, rangemin, rangemax], (err,reply)->
     if reply <= threshold*2
       rcli.ZRANGEBYSCORE [targetobj, '-inf', rangemin], (err,replies)->
@@ -433,6 +461,9 @@ isconflictrangelock = (targetobj, rangemin, rangemax, threshold, next)->
    RangeReaderロック
 ###
 module.exports.rangereaderlock = rangereaderlock = (objectname, rangemin, rangemax, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   waittimeobj = {time: lockconfig.waitmin}
   lockobj = {}
   lockobj['type'] = 'rangereader'
@@ -483,6 +514,9 @@ module.exports.rangereaderlock = rangereaderlock = (objectname, rangemin, rangem
    RangeReaderロックの対象を縮小する
 ###
 module.exports.rangereaderlock_shrink = rangereaderlock_shrink = (lockobj, rangemin, rangemax, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   if lockobj.type == 'rangereader' and lockobj.min <= rangemin and rangemin <= rangemax and rangemax <= lockobj.max
     args = [lockobj.robj, rangemin, lockobj.name+':left']
     rcli.ZADD args, (err,reply)->
@@ -503,6 +537,9 @@ module.exports.rangereaderlock_shrink = rangereaderlock_shrink = (lockobj, range
    RangePWRロック
 ###
 module.exports.rangepwrlock = rangepwrlock = (objectname, rangemin, rangemax, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   waittimeobj = {time: lockconfig.waitmin}
   lockobj = {}
   lockobj['type'] = 'rangepwr'
@@ -561,6 +598,9 @@ module.exports.rangepwrlock = rangepwrlock = (objectname, rangemin, rangemax, ne
    RangePWRロックの対象を縮小する
 ###
 module.exports.rangepwrlock_shrink = rangepwrlock_shrink = (lockobj, rangemin, rangemax, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   if lockobj.type == 'rangepwr' and lockobj.min <= rangemin and rangemin <= rangemax and rangemax <= lockobj.max
     args = [lockobj.pwrobj, rangemin, lockobj.name+':left']
     rcli.ZADD args, (err,reply)->
@@ -581,6 +621,9 @@ module.exports.rangepwrlock_shrink = rangepwrlock_shrink = (lockobj, rangemin, r
    RangeWriterロック
 ###
 module.exports.rangewriterlock = rangewriterlock = (objectname_or_lockobj, rangemin, rangemax, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   waittimeobj = {time: lockconfig.waitmin}
   lockobj = {}
   basename = ''
@@ -682,6 +725,9 @@ module.exports.rangewriterlock = rangewriterlock = (objectname_or_lockobj, range
    RangeWriterロックの対象を縮小する
 ###
 module.exports.rangewriterlock_shrink = rangewriterlock_shrink = (lockobj, rangemin, rangemax, next)->
+  if not next?
+    if lockconfig.log then console.log 'no next'
+    next = -> return
   if lockobj.type == 'rangewriter' and lockobj.min <= rangemin and rangemin <= rangemax and rangemax <= lockobj.max
     args = [lockobj.wobj, rangemin, lockobj.name+':left']
     rcli.ZADD args, (err,reply)->
@@ -697,173 +743,3 @@ module.exports.rangewriterlock_shrink = rangewriterlock_shrink = (lockobj, range
     process.exit 1
 
 
-
-###
----------------------------------------------
-   test
----------------------------------------------
-###
-
-
-randsleep = (next)->
-  setTimeout next, Math.floor(Math.random()*1000)
-
-
-testA = (num)->
-  randsleep ->
-    simplelock 'test', (lockobj)->
-      randsleep ->
-        console.log 'testA'+num
-        unlock lockobj, ->
-          return
-
-testB = (num)->
-  randsleep ->
-    simplelock 'test2', (lockobj)->
-      randsleep ->
-        console.log 'testB'+num
-        unlock lockobj, ->
-          return
-
-testC = (num)->
-  randsleep ->
-    simplelock 'test3', (lockobj)->
-      randsleep ->
-        console.log 'testC'+num
-        unlock lockobj, ->
-          return
-
-testD = (num)->
-  randsleep ->
-    multilock ['test','test2','test3'], (lockobj)->
-      randsleep ->
-        console.log 'testD'+num
-        unlock lockobj, ->
-          return
-
-testrwA = (num)->
-  randsleep ->
-    readerlock 'test', (lockobj)->
-      randsleep ->
-        console.log 'testA'+num
-        unlock lockobj, ->
-          return
-
-testrwB = (num)->
-  randsleep ->
-    readerlock 'test', (lockobj)->
-      randsleep ->
-        console.log 'testB'+num
-        unlock lockobj, ->
-          randsleep ->
-            randsleep ->
-              readerlock 'test', (lockobj)->
-                randsleep ->
-                  console.log 'testBB'+num
-                  unlock lockobj, ->
-                    randsleep ->
-                      randsleep ->
-                        readerlock 'test', (lockobj)->
-                          randsleep ->
-                            console.log 'testBBB'+num
-                            unlock lockobj, ->
-                              randsleep ->
-                                randsleep ->
-                                  readerlock 'test', (lockobj)->
-                                    randsleep ->
-                                      console.log 'testBBBB'+num
-                                      unlock lockobj, ->
-                                        return
-
-testrwC = (num)->
-  randsleep ->
-    pwrlock 'test', (lockobj)->
-      randsleep ->
-        writerlock lockobj, (lockobj)->
-          console.log 'testC'+num+':'+lockobj.score
-          unlock lockobj, ->
-            randsleep ->
-              unlock lockobj, ->
-                return
-
-testrwD = (num)->
-  randsleep ->
-    writerlock 'test', (lockobj)->
-      console.log 'testD'+num
-      unlock lockobj, ->
-        return
-
-
-testrangeA = (num)->
-  randsleep ->
-    rangereaderlock 'test', 0, 2, (lockobj)->
-      randsleep ->
-        console.log 'testA'+num
-        unlock lockobj, ->
-          return
-
-testrangeB = (num)->
-  randsleep ->
-    rangereaderlock 'test', 0, 1, (lockobj)->
-      randsleep ->
-        console.log 'testB'+num
-        unlock lockobj, ->
-          randsleep ->
-            randsleep ->
-              rangereaderlock 'test', 1, 2, (lockobj)->
-                randsleep ->
-                  console.log 'testBB'+num
-                  unlock lockobj, ->
-                    randsleep ->
-                      randsleep ->
-                        rangereaderlock 'test', 2, 3,  (lockobj)->
-                          randsleep ->
-                            console.log 'testBBB'+num
-                            unlock lockobj, ->
-                              randsleep ->
-                                randsleep ->
-                                  rangereaderlock 'test', 1, 2, (lockobj)->
-                                    randsleep ->
-                                      console.log 'testBBBB'+num
-                                      unlock lockobj, ->
-                                        return
-
-testrangeC = (num)->
-  randsleep ->
-    rangepwrlock 'test', 0.5, 2.0, (lockobj)->
-      randsleep ->
-        rangewriterlock lockobj, 1.2, 1.8, (wlockobj)->
-          console.log 'testC'+num
-          unlock wlockobj, ->
-            randsleep ->
-              unlock lockobj, ->
-                return
-
-testrangeD = (num)->
-  randsleep ->
-    rangewriterlock 'test', 2.2, 2.3, (lockobj)->
-      console.log 'testD'+num
-      unlock lockobj, ->
-        return
-
-
-
-init {},->
-  if false
-    for i in [0..5]
-      testA i
-      testB i
-      testC i
-      testD i
-  else if false
-    for i in [0..5]
-      testrwA i
-      testrwB i
-      testrwC i
-      testrwD i
-  else if true
-    for i in [0..5]
-      testrangeA i
-      testrangeB i
-      testrangeC i
-      testrangeD i

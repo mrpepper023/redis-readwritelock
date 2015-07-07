@@ -155,26 +155,27 @@ testrangeD = (num)->
 redislock.init {
   logwait: no
   logshrink: no
-  logsimple: no
-  logrw: no
+  logsimple: yes
+  logrw: yes
   logrange: yes
 },->
-  if false
-    for i in [0..5]
-      testA i
-      testB i
-      testC i
-      testD i
-  else if false
-    for i in [0..5]
-      testrwA i
-      testrwB i
-      testrwC i
-      testrwD i
-  else if true
-    for i in [0..5]
-      testrangeA i
-      testrangeB i
-      testrangeC i
-      testrangeD i
+  switch 1
+    when 1
+      for i in [0..5]
+        testA i
+        testB i
+        testC i
+        testD i
+    when 2
+      for i in [0..5]
+        testrwA i
+        testrwB i
+        testrwC i
+        testrwD i
+    when 3
+      for i in [0..5]
+        testrangeA i
+        testrangeB i
+        testrangeC i
+        testrangeD i
 
